@@ -1,0 +1,34 @@
+<idea-plugin>
+  <id>org.jetbrains.smartGotoImplementation</id>
+  <name>Smart Goto Implementation</name>
+  <version>0.0.1</version>
+  <vendor email="igor.yakovlev@jetbrains.com" url="jetbrains.com">Igor Yakovlev</vendor>
+
+  <depends>com.intellij.modules.lang</depends>
+  <depends>org.jetbrains.kotlin</depends>
+
+  <description>Goto implementation with evaluation of the receiver</description>
+
+  <idea-version since-build="191"/>
+
+  <actions>
+    <action id="VssIntegration.SmartGotoImplementationAction" class="org.jetbrains.plugins.smartGotoImplementation.SmartGotoImplementationAction" text="Smart Goto Implementation" description="Smart goto implementation">
+      <keyboard-shortcut keymap="$default" first-keystroke="alt shift b"/>
+    </action>
+    <action id="VssIntegration.SmartGotoImplementationWithSelectionAction" class="org.jetbrains.plugins.smartGotoImplementation.SmartGotoImplementationWithSelectionAction" text="Smart Goto Implementation" description="Smart goto implementation">
+      <mouse-shortcut keymap="$default" keystroke="alt shift button1 doubleClick"/>
+    </action>
+  </actions>
+
+  <extensionPoints>
+    <extensionPoint
+            interface="org.jetbrains.plugins.smartGotoImplementation.SmartGotoImplementationExtension"
+            name="smartGotoImplementationExtension" />
+  </extensionPoints>
+
+  <extensions defaultExtensionNs="org.jetbrains.smartGotoImplementation">
+    <smartGotoImplementationExtension implementation="org.jetbrains.plugins.smartGotoImplementation.JavaSupport"/>
+    <smartGotoImplementationExtension implementation="org.jetbrains.plugins.smartGotoImplementation.KotlinSupport"/>
+  </extensions>
+
+</idea-plugin>
