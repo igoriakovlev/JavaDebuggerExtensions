@@ -1,13 +1,17 @@
 <idea-plugin>
-  <id>org.jetbrains.smartGotoImplementation</id>
-  <name>Smart Goto Implementation</name>
+  <id>org.jetbrains.javaDebuggerExtensions</id>
+  <name>Java Debugger Extensions</name>
   <version>0.0.1</version>
   <vendor email="igor.yakovlev@jetbrains.com" url="jetbrains.com">Igor Yakovlev</vendor>
 
   <depends>com.intellij.modules.lang</depends>
   <depends>org.jetbrains.kotlin</depends>
 
-  <description>Goto implementation with evaluation of the receiver</description>
+  <description>
+    &lt;p&gt;Java Debugger extensions&lt;/p&gt;
+    &lt;p&gt;Smart Goto Implementation&lt;/p&gt;
+    &lt;p&gt;Emulated Step-Over&lt;/p&gt;
+  </description>
 
   <idea-version since-build="191"/>
 
@@ -17,6 +21,13 @@
     </action>
     <action id="VssIntegration.SmartGotoImplementationWithSelectionAction" class="org.jetbrains.plugins.smartGotoImplementation.SmartGotoImplementationWithSelectionAction" text="Smart Goto Implementation" description="Smart goto implementation">
       <mouse-shortcut keymap="$default" keystroke="alt shift button1 doubleClick"/>
+    </action>
+    <action id="StepOverEmulated" class="org.jetbrains.plugins.emulatedStepOver.EmulatedStepOverAction"
+            text="Step Over Emulated" icon="AllIcons.Actions.TraceOver">
+    <!--      <keyboard-shortcut first-keystroke="control alt shift F8" keymap="$default"/>-->
+    <!--      <keyboard-shortcut first-keystroke="meta shift F10" keymap="Visual Studio OSX" replace-all="true"/>-->
+      <add-to-group group-id="DebuggingActionsGroup" anchor="after" relative-to-action="StepOver"/>
+      <add-to-group group-id="EditorPopupMenuDebug" anchor="after" relative-to-action="StepOver"/>
     </action>
   </actions>
 
