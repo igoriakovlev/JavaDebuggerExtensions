@@ -7,11 +7,11 @@ import com.intellij.psi.PsiIdentifier
 import com.intellij.psi.PsiMethodCallExpression
 import com.intellij.psi.util.PsiTreeUtil
 
-class JavaSupport : SmartGotoImplementationExtension() {
+class JavaSupport : SmartGotoImplementationExtension {
 
     private val PsiElement.isValidElement get() = isValid && language == JavaLanguage.INSTANCE
 
-    override fun tryResolveCallExpression(element: PsiElement): ReceiverAndResolvedCall? = element.run {
+    override fun tryResolveCallExpression(element: PsiElement): SmartGotoImplementationExtension.ReceiverAndResolvedCall? = element.run {
         if (!isValidElement) return null
 
         val callExpression =
@@ -23,7 +23,7 @@ class JavaSupport : SmartGotoImplementationExtension() {
 
         val resolvedMethod = callExpression.resolveMethod() ?: return null
 
-        ReceiverAndResolvedCall(receiver, resolvedMethod)
+        SmartGotoImplementationExtension.ReceiverAndResolvedCall(receiver, resolvedMethod)
     }
 
     override fun tryFindContainingClass(element: PsiElement): PsiClass? =

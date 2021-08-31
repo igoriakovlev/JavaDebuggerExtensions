@@ -25,7 +25,11 @@ intellij {
 }
 
 patchPluginXml {
-  untilBuild = '201.*'
+  untilBuild = '213.*'
+}
+
+tasks.buildSearchableOptions {
+  enabled = false
 }
 
 sourceCompatibility = 1.8

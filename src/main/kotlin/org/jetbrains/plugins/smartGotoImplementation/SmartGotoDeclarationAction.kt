@@ -31,6 +31,7 @@ import com.intellij.xdebugger.XDebuggerUtil
 import com.intellij.xdebugger.evaluation.XDebuggerEvaluator
 import com.intellij.xdebugger.frame.XValue
 import com.intellij.xdebugger.impl.evaluate.quick.XDebuggerPsiEvaluator
+import org.jetbrains.kotlin.psi.KtSuperExpression
 import java.util.concurrent.TimeUnit
 
 const val NAVIGATION_DURING_UPDATE_ERROR = "Navigation is not available here during index update"
@@ -129,8 +130,7 @@ abstract class SmartGotoImplementationActionBase(private val withSelection: Bool
                 SmartGotoImplementationExtension.tryResolveCallExpression(sourceElement)
                     ?: return project.showCannotGotoNotification(INVALID_ELEMENT_TO_GOTO_ERROR)
 
-        if (!receiverAndMethod.resolvedMethod.hasModifierProperty(PsiModifier.ABSTRACT) &&
-                receiverAndMethod.resolvedMethod.containingClass?.isInterface != true) {
+        if (receiverAndMethod.receiver is KtSuperExpression) {
             GotoDeclarationAction().invoke(project, editor, file)
             return
         }

@@ -23,10 +23,10 @@
   <extensionPoints>
     <extensionPoint
             interface="org.jetbrains.plugins.smartGotoImplementation.SmartGotoImplementationExtension"
-            name="smartGotoImplementationExtension" />
+            qualifiedName="org.jetbrains.plugins.smartGotoImplementationExtension" />
   </extensionPoints>
 
-  <extensions defaultExtensionNs="org.jetbrains.smartGotoImplementation">
+  <extensions defaultExtensionNs="org.jetbrains.plugins">
     <smartGotoImplementationExtension implementation="org.jetbrains.plugins.smartGotoImplementation.JavaSupport"/>
     <smartGotoImplementationExtension implementation="org.jetbrains.plugins.smartGotoImplementation.KotlinSupport"/>
   </extensions>

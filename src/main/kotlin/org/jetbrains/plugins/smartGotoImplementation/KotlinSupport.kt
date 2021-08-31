@@ -16,11 +16,11 @@ import org.jetbrains.kotlin.psi.KtNameReferenceExpression
 import org.jetbrains.kotlin.resolve.lazy.BodyResolveMode
 import org.jetbrains.kotlin.resolve.source.getPsi
 
-class KotlinSupport : SmartGotoImplementationExtension() {
+class KotlinSupport : SmartGotoImplementationExtension {
 
     private val PsiElement.isValidElement get() = isValid && language == KotlinLanguage.INSTANCE
 
-    override fun tryResolveCallExpression(element: PsiElement): ReceiverAndResolvedCall? = element.run {
+    override fun tryResolveCallExpression(element: PsiElement): SmartGotoImplementationExtension.ReceiverAndResolvedCall? = element.run {
         if (!isValidElement) return null
 
         val nameReferenceExpression = parent as? KtNameReferenceExpression ?: return null
@@ -44,7 +44,7 @@ class KotlinSupport : SmartGotoImplementationExtension() {
             else -> null
         }
 
-        ReceiverAndResolvedCall(receiverExpression, resolvedMethod)
+        SmartGotoImplementationExtension.ReceiverAndResolvedCall(receiverExpression, resolvedMethod)
     }
 
     override fun tryFindContainingClass(element: PsiElement): PsiClass? =
