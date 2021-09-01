@@ -1,36 +1,29 @@
 package org.jetbrains.plugins.emulatedStepOver
 
-import com.intellij.debugger.engine.SuspendContextImpl
-import com.intellij.debugger.engine.events.DebuggerContextCommandImpl
 import com.intellij.debugger.engine.jdi.StackFrameProxy
-import com.intellij.debugger.impl.DebuggerSession
 import com.intellij.debugger.jdi.MethodBytecodeUtil
-import com.sun.jdi.Location
 import org.jetbrains.org.objectweb.asm.Label
 import org.jetbrains.org.objectweb.asm.Opcodes
-import java.util.*
 
-private enum class NodeType {
+internal enum class NodeType {
     EndedWithLine,
     EndedWithReturn,
     EndedWithGoto
 }
 
-private data class LineControlFlowNode(
+internal data class LineControlFlowNode(
     val line: Int,
     val nextLine: Int,
     val jumpIndexes: List<Long>,
     val type: NodeType
 )
 
-private val lineNodes = WeakHashMap<StackFrameProxy, Map<Long, LineControlFlowNode>>()
-
 private inline fun LineControlFlowNode?.checkToBeEndedWithLineOrNull(body: () -> Unit) {
     require(this == null || type == NodeType.EndedWithLine)
     body()
 }
 
-private fun StackFrameProxy.buildControlFlowNodes(): Map<Long, LineControlFlowNode> {
+internal fun StackFrameProxy.buildControlFlowNodes(): Map<Long, LineControlFlowNode> {
 
     val result = mutableMapOf<Long, LineControlFlowNode>()
 
@@ -130,94 +123,4 @@ private fun StackFrameProxy.buildControlFlowNodes(): Map<Long, LineControlFlowNo
 
 
     return result
-}
-
-private fun StackFrameProxy.getControlFlowReachableLocations(): List<Location>? {
-    val nodes = synchronized(lineNodes) {
-        lineNodes.getOrPut(this) {
-            buildControlFlowNodes()
-        }
-    }
-
-    if (nodes.isEmpty()) return null
-
-    fun getNodeByIndex(index: Long): LineControlFlowNode {
-        var bestNode = nodes.entries.first()
-        nodes.forEach {
-            if (it.key > index && it.key < bestNode.key) {
-                bestNode = it
-            }
-        }
-        return bestNode.value
-    }
-
-    fun getNodeByLine(line: Int): LineControlFlowNode? =
-        nodes.values.firstOrNull { it.line == line }
-
-    val location = location()
-    val method = location.method()
-    val lineNode = getNodeByLine(location.lineNumber()) ?: return null
-    val result = mutableListOf<Location>()
-    val visited = mutableSetOf<Int>()
-
-    fun visitNode(node: LineControlFlowNode): Boolean {
-        if (node.type == NodeType.EndedWithReturn) return false
-        if (!visited.add(node.line)) return true
-
-        if (node.type == NodeType.EndedWithLine) {
-            method.locationsOfLine(node.nextLine).forEach {
-                result.add(it)
-            }
-        }
-
-        node.jumpIndexes.forEach {
-            if (!visitNode(getNodeByIndex(it))) return false
-        }
-        return true
-    }
-
-    return if (visitNode(lineNode)) result else null
-}
-
-internal fun doStepOver(session: DebuggerSession) {
-
-    val currentFrame = session.contextManager.context.threadProxy?.frame(0)
-    val locationsFromControlFlow = currentFrame?.let {
-        runInDebuggerThread(session) {
-            it.getControlFlowReachableLocations()
-        }
-    }
-
-    if (locationsFromControlFlow == null) {
-        val stepOver = session.process.createStepOverCommand(session.contextManager.context.suspendContext, false)
-        session.process.managerThread.schedule(stepOver)
-        return
-    }
-
-    val command = object : DebuggerContextCommandImpl(session.contextManager.context) {
-        override fun threadAction(suspendContext: SuspendContextImpl) {
-
-            val thread = suspendContext.thread ?: return
-            val process = suspendContext.debugProcess
-
-            val breakpoints = mutableListOf<InstrumentationMethodBreakpoint>()
-            fun deleteRequests() {
-                breakpoints.forEach {
-                    process.requestsManager.deleteRequest(it)
-                }
-            }
-
-            locationsFromControlFlow.mapTo(breakpoints) {
-                InstrumentationMethodBreakpoint(suspendContext.debugProcess, thread, it) {
-                    val isTargetFrame = thread.frame(0) == currentFrame
-                    if (isTargetFrame) {
-                        deleteRequests()
-                    }
-                    isTargetFrame
-                }
-            }
-            process.suspendManager.resume(process.suspendManager.pausedContext)
-        }
-    }
-    session.process.managerThread.schedule(command)
 }

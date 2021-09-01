@@ -3,11 +3,13 @@ package org.jetbrains.plugins.emulatedStepOver
 import com.intellij.debugger.engine.DebugProcessImpl
 import com.intellij.debugger.engine.events.SuspendContextCommandImpl
 import com.intellij.debugger.jdi.ThreadReferenceProxyImpl
+import com.intellij.debugger.requests.Requestor
 import com.intellij.debugger.settings.DebuggerSettings
 import com.intellij.debugger.ui.breakpoints.SyntheticLineBreakpoint
 import com.intellij.openapi.editor.Document
 import com.sun.jdi.Location
 import com.sun.jdi.event.LocatableEvent
+import com.sun.jdi.request.BreakpointRequest
 
 internal class InstrumentationMethodBreakpoint(
     private val process: DebugProcessImpl,
@@ -21,10 +23,16 @@ internal class InstrumentationMethodBreakpoint(
         createRequest(process)
     }
 
+    companion object {
+        private val REQUEST_KEY = com.intellij.openapi.util.Key.create<Requestor>("InstrumentationMethodBreakpoint")
+        val BreakpointRequest.instrumentationMethodBreakpoint: InstrumentationMethodBreakpoint? get() = getProperty(REQUEST_KEY) as? InstrumentationMethodBreakpoint
+    }
+
     override fun createRequest(debugProcess: DebugProcessImpl) {
         debugProcess.requestsManager.run {
             enableRequest(createBreakpointRequest(this@InstrumentationMethodBreakpoint, location).also {
                 filterThread = thread.threadReference
+                it.putProperty(REQUEST_KEY, this@InstrumentationMethodBreakpoint)
             })
         }
     }

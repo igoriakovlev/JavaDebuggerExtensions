@@ -75,11 +75,15 @@ abstract class SmartGotoImplementationActionBase(private val withSelection: Bool
             val typeClass = findClassByDebuggerType(evaluatedType, result.evaluationContext.debugProcess, project)
                     ?: return project.showCannotGotoNotification(CAN_NOT_FIND_TYPE_FOR_EVALUATED_VALUE_ERROR)
 
-            val resultMethod = MethodSignatureUtil.findMethodBySignature(typeClass, receiverAndCall.resolvedMethod, true)
-                    ?: return project.showCannotGotoNotification(CAN_NOT_FIND_TARGET_OVERRIDDEN_METHOD_ERROR)
-
             laterPlease {
-                resultMethod.gotoMethod(editor, file)
+                readPlease {
+                    val resultMethod = MethodSignatureUtil.findMethodBySignature(typeClass, receiverAndCall.resolvedMethod, true)
+                    if (resultMethod != null) {
+                        resultMethod.gotoMethod(editor, file)
+                    } else {
+                        project.showCannotGotoNotification(CAN_NOT_FIND_TARGET_OVERRIDDEN_METHOD_ERROR)
+                    }
+                }
             }
         }
 

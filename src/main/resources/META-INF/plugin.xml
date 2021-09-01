@@ -16,9 +16,13 @@
   <idea-version since-build="191"/>
 
   <actions>
-    <action id="VssIntegration.SmartGotoImplementationAction" class="org.jetbrains.plugins.smartGotoImplementation.SmartGotoImplementationAction" text="Smart Goto Implementation" description="Smart goto implementation">
+<!--    <action id="VssIntegration.SmartGotoImplementationAction" class="org.jetbrains.plugins.smartGotoImplementation.SmartGotoImplementationAction" text="Smart Goto Implementation" description="Smart goto implementation">-->
+<!--      <keyboard-shortcut keymap="$default" first-keystroke="alt shift b"/>-->
+<!--    </action>-->
+    <action id="VssIntegration.SingleShotAction" class="org.jetbrains.plugins.singleShotBreakpoint.SingleShotAction" text="Set Single-Shot Breakpoint" description="Set single-shot breakpoint">
       <keyboard-shortcut keymap="$default" first-keystroke="alt shift b"/>
     </action>
+
     <action id="VssIntegration.SmartGotoImplementationWithSelectionAction" class="org.jetbrains.plugins.smartGotoImplementation.SmartGotoImplementationWithSelectionAction" text="Smart Goto Implementation" description="Smart goto implementation">
       <mouse-shortcut keymap="$default" keystroke="alt shift button1 doubleClick"/>
     </action>
@@ -30,6 +34,11 @@
       <add-to-group group-id="EditorPopupMenuDebug" anchor="after" relative-to-action="StepOver"/>
     </action>
   </actions>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <postStartupActivity implementation="org.jetbrains.plugins.singleShotBreakpoint.StartupActivity" />
+    <postStartupActivity implementation="org.jetbrains.plugins.emulatedStepOver.StartupActivity" />
+  </extensions>
 
   <extensionPoints>
     <extensionPoint

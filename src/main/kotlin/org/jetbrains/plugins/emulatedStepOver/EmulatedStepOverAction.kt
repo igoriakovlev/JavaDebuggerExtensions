@@ -26,7 +26,7 @@ class EmulatedStepOverActionHandler : XDebuggerSuspendedActionHandler() {
     override fun perform(session: XDebugSession, dataContext: DataContext) {
         val xDebugSession = session as? XDebugSessionImpl ?: return
         val debugProcess = xDebugSession.debugProcess as? JavaDebugProcess ?: return
-        doStepOver(debugProcess.debuggerSession)
+        SessionService.getStepOverService(debugProcess.debuggerSession).doStepOver()
     }
 }
 
