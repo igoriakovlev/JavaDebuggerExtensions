@@ -12,9 +12,9 @@ import com.intellij.xdebugger.impl.XDebugSessionImpl
 import com.intellij.xdebugger.impl.actions.DebuggerActionHandler
 import com.intellij.xdebugger.impl.actions.XDebuggerActionBase
 import com.intellij.xdebugger.impl.actions.XDebuggerSuspendedActionHandler
+import org.jetbrains.plugins.emulatedStepOver.SessionService.Companion.runOnSession
 
-
-class EmulatedStepOverActionHandler : XDebuggerSuspendedActionHandler() {
+internal class EmulatedStepOverActionHandler : XDebuggerSuspendedActionHandler() {
     override fun isEnabled(session: XDebugSession, dataContext: DataContext): Boolean {
         if (!isEnabled(session) || !super.isEnabled(session, dataContext))
             return false
@@ -26,7 +26,7 @@ class EmulatedStepOverActionHandler : XDebuggerSuspendedActionHandler() {
     override fun perform(session: XDebugSession, dataContext: DataContext) {
         val xDebugSession = session as? XDebugSessionImpl ?: return
         val debugProcess = xDebugSession.debugProcess as? JavaDebugProcess ?: return
-        SessionService.getStepOverService(debugProcess.debuggerSession).doStepOver()
+        with(debugProcess.debuggerSession) { runOnSession { doStepOver() } }
     }
 }
 
@@ -43,7 +43,7 @@ private class DummyActionHandler : DebuggerActionHandler() {
     override fun isHidden(project: Project, event: AnActionEvent?) = true
 }
 
-class EmulatedStepOverAction : XDebuggerActionBase(true) {
+internal class EmulatedStepOverAction : XDebuggerActionBase(true) {
 
     override fun isEnabled(e: AnActionEvent?): Boolean {
         val project = e?.project ?: return false

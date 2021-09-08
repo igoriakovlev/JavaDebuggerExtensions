@@ -1,4 +1,4 @@
-package org.jetbrains.plugins.singleShotBreakpoint
+package org.jetbrains.plugins.runToMultiLine
 
 import com.intellij.debugger.impl.DebuggerSession
 import com.intellij.openapi.editor.Document
@@ -12,15 +12,10 @@ import org.jetbrains.plugins.emulatedStepOver.InstrumentationMethodBreakpoint
 import org.jetbrains.plugins.invokeIfNotSetAndSetFlag
 import org.jetbrains.plugins.invokeLaterAndResetFlag
 import org.jetbrains.plugins.runDebuggerCommand
-import java.lang.ref.WeakReference
 import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
 
-internal class SessionService(private val weakSession: WeakReference<DebuggerSession>) {
-
-    private val session: DebuggerSession get() = weakSession.get()
-        ?: error("Session is no longer valid")
-
+internal class SessionService {
     private data class BreakpointInfo(
         val line: Int,
         val breakpoints: List<InstrumentationMethodBreakpoint>,
@@ -31,7 +26,7 @@ internal class SessionService(private val weakSession: WeakReference<DebuggerSes
     private val breakPoints = mutableListOf<BreakpointInfo>()
     private val inProgress = AtomicBoolean(false)
 
-    private fun tryRemoveBreakpoint(line: Int): Boolean {
+    private fun tryRemoveBreakpoint(session: DebuggerSession, line: Int): Boolean {
         val breakPoint = breakPoints.firstOrNull { it.line == line }
             ?: return false
         breakPoints.remove(breakPoint)
@@ -51,7 +46,7 @@ internal class SessionService(private val weakSession: WeakReference<DebuggerSes
         return true
     }
 
-    private fun setBreakPoint(document: Document, line: Int) {
+    private fun setBreakPoint(session: DebuggerSession, document: Document, line: Int) {
         session.runDebuggerCommand { suspendContext ->
             val createdBreakpoints = mutableListOf<InstrumentationMethodBreakpoint>()
             try {
@@ -80,9 +75,9 @@ internal class SessionService(private val weakSession: WeakReference<DebuggerSes
         }
     }
 
-    fun resetBreakPoints() {
+    fun DebuggerSession.resetBreakPoints() {
         inProgress.invokeIfNotSetAndSetFlag {
-            session.runDebuggerCommand { suspendContext ->
+            runDebuggerCommand { suspendContext ->
                 breakPoints.forEach { info ->
                     info.breakpoints.forEach { breakPoint ->
                         suspendContext.debugProcess.requestsManager.deleteRequest(breakPoint)
@@ -96,9 +91,9 @@ internal class SessionService(private val weakSession: WeakReference<DebuggerSes
         }
     }
 
-    fun toggleBreakPoint(document: Document, line: Int) {
+    fun DebuggerSession.toggleBreakPoint(document: Document, line: Int) {
         inProgress.invokeIfNotSetAndSetFlag {
-            if (!tryRemoveBreakpoint(line)) setBreakPoint(document, line)
+            if (!tryRemoveBreakpoint(this, line)) setBreakPoint(this, document, line)
         }
     }
 
@@ -107,10 +102,11 @@ internal class SessionService(private val weakSession: WeakReference<DebuggerSes
         val markupAttribute: TextAttributes =
             EditorColorsManager.getInstance().globalScheme.getAttributes(DebuggerColors.SMART_STEP_INTO_TARGET)
 
+        inline fun DebuggerSession.runOnSession(body: SessionService.() -> Unit) =
+            getJumpService(this).body()
+
         fun getJumpService(session: DebuggerSession): SessionService = synchronized(servicesCollection) {
-            servicesCollection.getOrPut(session) {
-                SessionService(WeakReference(session))
-            }
+            servicesCollection.getOrPut(session) { SessionService() }
         }
     }
 }

@@ -16,17 +16,17 @@
   <idea-version since-build="191"/>
 
   <actions>
-<!--    <action id="VssIntegration.SmartGotoImplementationAction" class="org.jetbrains.plugins.smartGotoImplementation.SmartGotoImplementationAction" text="Smart Goto Implementation" description="Smart goto implementation">-->
-<!--      <keyboard-shortcut keymap="$default" first-keystroke="alt shift b"/>-->
-<!--    </action>-->
-    <action id="VssIntegration.SingleShotAction" class="org.jetbrains.plugins.singleShotBreakpoint.SingleShotAction" text="Set Single-Shot Breakpoint" description="Set single-shot breakpoint">
+    <action id="VssIntegration.SmartGotoImplementationAction" class="org.jetbrains.plugins.smartGotoImplementation.SmartGotoImplementationAction" text="Smart Goto Implementation" description="Smart goto implementation">
       <keyboard-shortcut keymap="$default" first-keystroke="alt shift b"/>
+    </action>
+    <action id="VssIntegration.RunToMultiLineAction" class="org.jetbrains.plugins.runToMultiLine.RunToMultiLineAction" text="Set Multiline Breakpoint on Line" description="Set Multiline breakpoint on line">
+<!--      <keyboard-shortcut keymap="$default" first-keystroke="alt shift b"/>-->
     </action>
 
     <action id="VssIntegration.SmartGotoImplementationWithSelectionAction" class="org.jetbrains.plugins.smartGotoImplementation.SmartGotoImplementationWithSelectionAction" text="Smart Goto Implementation" description="Smart goto implementation">
       <mouse-shortcut keymap="$default" keystroke="alt shift button1 doubleClick"/>
     </action>
-    <action id="StepOverEmulated" class="org.jetbrains.plugins.emulatedStepOver.EmulatedStepOverAction"
+      <action id="StepOverEmulated" class="org.jetbrains.plugins.emulatedStepOver.EmulatedStepOverAction"
             text="Step Over Emulated" icon="AllIcons.Actions.TraceOver">
     <!--      <keyboard-shortcut first-keystroke="control alt shift F8" keymap="$default"/>-->
     <!--      <keyboard-shortcut first-keystroke="meta shift F10" keymap="Visual Studio OSX" replace-all="true"/>-->
@@ -36,7 +36,7 @@
   </actions>
 
   <extensions defaultExtensionNs="com.intellij">
-    <postStartupActivity implementation="org.jetbrains.plugins.singleShotBreakpoint.StartupActivity" />
+    <postStartupActivity implementation="org.jetbrains.plugins.runToMultiLine.StartupActivity" />
     <postStartupActivity implementation="org.jetbrains.plugins.emulatedStepOver.StartupActivity" />
   </extensions>
 

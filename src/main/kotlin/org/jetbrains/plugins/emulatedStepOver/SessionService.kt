@@ -8,13 +8,9 @@ import com.sun.jdi.event.BreakpointEvent
 import com.sun.jdi.request.BreakpointRequest
 import org.jetbrains.plugins.emulatedStepOver.InstrumentationMethodBreakpoint.Companion.instrumentationMethodBreakpoint
 import org.jetbrains.plugins.runDebuggerCommand
-import java.lang.ref.WeakReference
 import java.util.*
 
-internal class SessionService(private val weakSession: WeakReference<DebuggerSession>) {
-
-    private val session: DebuggerSession get() = weakSession.get()
-        ?: error("Session is no longer valid")
+internal class SessionService {
 
     private val breakPoints = mutableListOf<InstrumentationMethodBreakpoint>()
     private val lineNodes = WeakHashMap<StackFrameProxy, Map<Long, LineControlFlowNode>>()
@@ -64,14 +60,14 @@ internal class SessionService(private val weakSession: WeakReference<DebuggerSes
         return if (visitNode(lineNode)) result else null
     }
 
-    internal fun onStop() {
-        val events = session.process.suspendManager.pausedContext.eventSet ?: return
+    internal fun DebuggerSession.onStop() {
+        val events = process.suspendManager.pausedContext.eventSet ?: return
         val isEventFromOurRequest = events.filterIsInstance<BreakpointEvent>().any {
             val request = (it.request() as? BreakpointRequest)?.instrumentationMethodBreakpoint
             request != null && breakPoints.contains(request)
         }
         if (!isEventFromOurRequest) {
-            session.process.deleteRequests()
+            process.deleteRequests()
         }
     }
 
@@ -81,7 +77,7 @@ internal class SessionService(private val weakSession: WeakReference<DebuggerSes
         }
     }
 
-    internal fun doStepOver() = session.runDebuggerCommand { suspendContext ->
+    internal fun DebuggerSession.doStepOver(): Unit = runDebuggerCommand { suspendContext ->
         val process = suspendContext.debugProcess
         val thread = suspendContext.thread
         val currentFrame = thread?.frame(0)
@@ -89,7 +85,7 @@ internal class SessionService(private val weakSession: WeakReference<DebuggerSes
 
         //Fallback
         if (locationsFromControlFlow == null) {
-            val stepOver = process.createStepOverCommand(session.contextManager.context.suspendContext, false)
+            val stepOver = process.createStepOverCommand(contextManager.context.suspendContext, false)
             process.managerThread.schedule(stepOver)
             return@runDebuggerCommand
         }
@@ -109,9 +105,12 @@ internal class SessionService(private val weakSession: WeakReference<DebuggerSes
     companion object {
         private val servicesCollection = WeakHashMap<DebuggerSession, SessionService>()
 
+        inline fun DebuggerSession.runOnSession(body: SessionService.() -> Unit) =
+            with(this) { getStepOverService(this).body() }
+
         fun getStepOverService(session: DebuggerSession): SessionService = synchronized(servicesCollection) {
             servicesCollection.getOrPut(session) {
-                SessionService(WeakReference(session))
+                SessionService()
             }
         }
     }

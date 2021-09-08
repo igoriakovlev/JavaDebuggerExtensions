@@ -2,6 +2,7 @@ package org.jetbrains.plugins
 
 import com.intellij.debugger.engine.DebugProcessImpl
 import com.intellij.debugger.engine.DebuggerManagerThreadImpl
+import com.intellij.debugger.engine.JavaDebugProcess
 import com.intellij.debugger.engine.SuspendContextImpl
 import com.intellij.debugger.engine.events.DebuggerCommandImpl
 import com.intellij.debugger.engine.events.DebuggerContextCommandImpl
@@ -10,6 +11,7 @@ import com.intellij.debugger.impl.DebuggerSession
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
+import com.intellij.xdebugger.XDebuggerManager
 import com.intellij.xdebugger.impl.XDebugSessionImpl
 import com.intellij.xdebugger.impl.actions.DebuggerActionHandler
 import java.util.concurrent.atomic.AtomicBoolean
@@ -79,5 +81,8 @@ internal inline fun AtomicBoolean.invokeIfNotSetAndSetFlag(crossinline body: () 
     body()
 }
 
-internal fun XDebugSessionImpl.isGradleRun(): Boolean =
-    executionEnvironment?.runnerAndConfigurationSettings?.configuration?.javaClass?.name?.contains("Gradle") == true
+internal val Project.suspendedJavaSession: DebuggerSession? get() {
+    val xSession = XDebuggerManager.getInstance(this).currentSession ?: return null
+    if (!xSession.isSuspended) return null
+    return (xSession.debugProcess as? JavaDebugProcess)?.debuggerSession
+}

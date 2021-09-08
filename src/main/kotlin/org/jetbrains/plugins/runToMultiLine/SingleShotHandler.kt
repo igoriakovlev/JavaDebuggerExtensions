@@ -1,4 +1,4 @@
-package org.jetbrains.plugins.singleShotBreakpoint
+package org.jetbrains.plugins.runToMultiLine
 
 import com.intellij.debugger.engine.JavaDebugProcess
 import com.intellij.openapi.actionSystem.CommonDataKeys
@@ -11,8 +11,9 @@ import com.intellij.xdebugger.XDebugSession
 import com.intellij.xdebugger.impl.XDebugSessionImpl
 import com.intellij.xdebugger.impl.XDebuggerUtilImpl
 import com.intellij.xdebugger.impl.actions.XDebuggerSuspendedActionHandler
+import org.jetbrains.plugins.runToMultiLine.SessionService.Companion.runOnSession
 
-internal class SingleShotHandler : XDebuggerSuspendedActionHandler() {
+internal class RunToMultiLineHandler : XDebuggerSuspendedActionHandler() {
 
     override fun isEnabled(session: XDebugSession, dataContext: DataContext): Boolean {
         if (!isEnabled(session) || !super.isEnabled(session, dataContext))
@@ -56,8 +57,8 @@ internal class SingleShotHandler : XDebuggerSuspendedActionHandler() {
 
         if (currentLine == positionLine) return balloonDefaultError()
 
-        val jumpService = SessionService.getJumpService(debugProcess.debuggerSession)
-
-        jumpService.toggleBreakPoint(editor.document, positionLine)
+        with(debugProcess.debuggerSession) {
+            runOnSession { toggleBreakPoint(editor.document, positionLine) }
+        }
     }
 }

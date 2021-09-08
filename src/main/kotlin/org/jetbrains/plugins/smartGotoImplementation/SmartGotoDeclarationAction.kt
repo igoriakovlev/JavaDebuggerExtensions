@@ -134,7 +134,7 @@ abstract class SmartGotoImplementationActionBase(private val withSelection: Bool
                 SmartGotoImplementationExtension.tryResolveCallExpression(sourceElement)
                     ?: return project.showCannotGotoNotification(INVALID_ELEMENT_TO_GOTO_ERROR)
 
-        if (receiverAndMethod.receiver is KtSuperExpression) {
+        if (receiverAndMethod.receiver is KtSuperExpression || receiverAndMethod.resolvedMethod.hasModifierProperty("static")) {
             GotoDeclarationAction().invoke(project, editor, file)
             return
         }

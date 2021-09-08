@@ -7,22 +7,20 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.startup.StartupActivity
 import com.intellij.xdebugger.XDebugSessionListener
 import com.intellij.xdebugger.impl.XDebugSessionImpl
-import org.jetbrains.plugins.isGradleRun
+import org.jetbrains.plugins.emulatedStepOver.SessionService.Companion.runOnSession
 
 class StartupActivity : StartupActivity {
-    private class EmulatedStepOverSessionEventHandler(private val sessionService: SessionService) : XDebugSessionListener, EditorMouseListener {
-        override fun sessionPaused() = sessionService.onStop()
-        override fun sessionStopped() = Unit
-        override fun sessionResumed() = Unit
+    private class EmulatedStepOverSessionEventHandler(private val session: DebuggerSession) : XDebugSessionListener, EditorMouseListener {
+        override fun sessionPaused(): Unit = with(session) { runOnSession { onStop() } }
+        override fun sessionStopped(): Unit = Unit
+        override fun sessionResumed(): Unit = Unit
     }
 
     override fun runActivity(project: Project) {
         val debuggerListener = object : DebuggerManagerListener {
             override fun sessionAttached(session: DebuggerSession?) {
                 val xSession = session?.xDebugSession as? XDebugSessionImpl ?: return
-                if (xSession.isGradleRun()) return
-                val jumpService = SessionService.getStepOverService(session)
-                val sessionHandler = EmulatedStepOverSessionEventHandler(jumpService)
+                val sessionHandler = EmulatedStepOverSessionEventHandler(session)
                 xSession.addSessionListener(sessionHandler)
             }
         }
