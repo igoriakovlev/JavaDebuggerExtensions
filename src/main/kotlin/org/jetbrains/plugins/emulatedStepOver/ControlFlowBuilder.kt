@@ -6,33 +6,46 @@ import org.jetbrains.org.objectweb.asm.Label
 import org.jetbrains.org.objectweb.asm.Opcodes
 
 internal enum class NodeType {
-    EndedWithLine,
-    EndedWithReturn,
-    EndedWithGoto
+    ConditionalGoto,
+    Goto,
+    Return,
+    SimpleLine,
 }
 
-internal data class LineControlFlowNode(
-    val line: Int,
-    val nextLine: Int,
-    val jumpIndexes: List<Long>,
+internal data class ControlFlowNode(
+    val lineNumber: Int?,
+    val instructionIndex: Long,
+    val jumpIndex: Long,
     val type: NodeType
 )
 
-private inline fun LineControlFlowNode?.checkToBeEndedWithLineOrNull(body: () -> Unit) {
-    require(this == null || type == NodeType.EndedWithLine)
-    body()
-}
+internal fun StackFrameProxy.buildControlFlowNodes(): List<ControlFlowNode> {
 
-internal fun StackFrameProxy.buildControlFlowNodes(): Map<Long, LineControlFlowNode> {
-
-    val result = mutableMapOf<Long, LineControlFlowNode>()
+    val nodes = mutableListOf<ControlFlowNode>()
+    val lines = mutableMapOf<Long, Int>()
 
     val labelToIndex = mutableMapOf<Label, Long>()
     val jumpLabels = mutableListOf<Label>()
-    MethodBytecodeUtil.visit(location().method(), object : MethodVisitorWithCounter() {
+
+    val methodToVisit = location().method()
+
+    val location = location()
+    val allowedLines = methodToVisit
+        .allLineLocations("Java", location.sourceName())
+        .map { it.lineNumber("Java") }
+
+    MethodBytecodeUtil.visit(methodToVisit, object : MethodVisitorWithCounter() {
+
+        override fun visitLineNumber(line: Int, start: Label?) {
+            super.visitLineNumber(line, start)
+            if (line in allowedLines) {
+                lines[instructionIndex + 1 ] = line
+            }
+        }
+
         override fun visitLabel(label: Label?) {
             super.visitLabel(label)
-            label?.let { labelToIndex[label] = instructionIndex }
+            label?.let { labelToIndex[label] = instructionIndex + 1 }
         }
 
         override fun visitJumpInsn(opcode: Int, label: Label?) {
@@ -52,35 +65,15 @@ internal fun StackFrameProxy.buildControlFlowNodes(): Map<Long, LineControlFlowN
     }, true)
 
     val jumpIndexesIterator = jumpLabels.asSequence().map { labelToIndex[it] }.iterator()
-    val location = location()
-    val methodToVisit = location().method()
-    val allowedLines = methodToVisit
-        .allLineLocations("Java", location.sourceName())
-        .map { it.lineNumber("Java") }
     MethodBytecodeUtil.visit(methodToVisit, object : MethodVisitorWithCounter() {
-        var currentLine = -1
-        var jumpIndexes = mutableListOf<Long>()
-
-        override fun visitLineNumber(line: Int, start: Label) {
-            super.visitLineNumber(line, start)
-            if (line in allowedLines) {
-                val beforeLineIndexes = result[instructionIndex]?.jumpIndexes ?: jumpIndexes
-                result[instructionIndex] = LineControlFlowNode(currentLine, line, beforeLineIndexes, NodeType.EndedWithLine)
-                jumpIndexes = mutableListOf()
-                currentLine = line
-            }
-        }
 
         override fun visitJumpInsn(opcode: Int, label: Label?) {
             super.visitJumpInsn(opcode, label)
-            label?.let { jumpIndexesIterator.next() }?.let { jumpIndexes.add(it) }
-            when(opcode) {
-                Opcodes.GOTO -> {
-                    result[instructionIndex].checkToBeEndedWithLineOrNull {
-                        result[instructionIndex] = LineControlFlowNode(currentLine, -1, jumpIndexes, NodeType.EndedWithGoto)
-                    }
-                    jumpIndexes = mutableListOf()
-                }
+            val jumpIndex = label?.let { jumpIndexesIterator.next() }
+            if (jumpIndex != null) {
+                val nodeType = if (opcode == Opcodes.GOTO) NodeType.Goto else NodeType.ConditionalGoto
+                nodes.add(ControlFlowNode(lines[instructionIndex], instructionIndex, jumpIndex, nodeType))
+                lines.remove(instructionIndex)
             }
         }
 
@@ -94,10 +87,8 @@ internal fun StackFrameProxy.buildControlFlowNodes(): Map<Long, LineControlFlowN
                 Opcodes.LRETURN,
                 Opcodes.DRETURN,
                 Opcodes.ATHROW -> {
-                    result[instructionIndex].checkToBeEndedWithLineOrNull {
-                        result[instructionIndex] = LineControlFlowNode(currentLine, -1, jumpIndexes, NodeType.EndedWithReturn)
-                    }
-                    jumpIndexes = mutableListOf()
+                    nodes.add(ControlFlowNode(lines[instructionIndex], instructionIndex, -1, NodeType.Return))
+                    lines.remove(instructionIndex)
                 }
             }
         }
@@ -105,22 +96,35 @@ internal fun StackFrameProxy.buildControlFlowNodes(): Map<Long, LineControlFlowN
         override fun visitLookupSwitchInsn(dflt: Label?, keys: IntArray?, labels: Array<out Label>?) {
             super.visitLookupSwitchInsn(dflt, keys, labels)
             if (labels != null) {
+                val lineIfAny = lines[instructionIndex]
+                lines.remove(instructionIndex)
                 for (i in 0..labelToIndex.size) {
-                    jumpIndexesIterator.next()?.let { jumpIndexes.add(it) }
+                    val index = jumpIndexesIterator.next()
+                    if (index != null) {
+                        nodes.add(ControlFlowNode(lineIfAny, instructionIndex, index, NodeType.ConditionalGoto))
+                    }
                 }
             }
         }
 
         override fun visitTableSwitchInsn(min: Int, max: Int, dflt: Label?, vararg labels: Label?) {
             super.visitTableSwitchInsn(min, max, dflt, *labels)
+            val lineIfAny = lines[instructionIndex]
+            lines.remove(instructionIndex)
             for (i in 0..labelToIndex.size) {
                 if (labels[i] != null) {
-                    jumpIndexesIterator.next()?.let { jumpIndexes.add(it) }
+                    val index = jumpIndexesIterator.next()
+                    if (index != null) {
+                        nodes.add(ControlFlowNode(lineIfAny, instructionIndex, index, NodeType.ConditionalGoto))
+                    }
                 }
             }
         }
     }, true)
 
+    for (line in lines) {
+        nodes.add(ControlFlowNode(line.value, line.key, -1, NodeType.SimpleLine))
+    }
 
-    return result
+    return nodes
 }
