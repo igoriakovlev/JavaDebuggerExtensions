@@ -4,6 +4,7 @@ import com.intellij.debugger.engine.DebugProcessImpl
 import com.intellij.debugger.engine.jdi.StackFrameProxy
 import com.intellij.debugger.impl.DebuggerSession
 import com.sun.jdi.Location
+import com.sun.jdi.Method
 import com.sun.jdi.event.BreakpointEvent
 import com.sun.jdi.request.BreakpointRequest
 import org.jetbrains.plugins.emulatedStepOver.InstrumentationMethodBreakpoint.Companion.instrumentationMethodBreakpoint
@@ -14,6 +15,44 @@ internal class SessionService {
 
     private val breakPoints = mutableListOf<InstrumentationMethodBreakpoint>()
     private val controlFlowNodes = WeakHashMap<StackFrameProxy, List<ControlFlowNode>>()
+
+    private fun sortedLineArrays(method: Method, line: Int, controlFlowNodes: List<ControlFlowNode>): Pair<Array<Location>, Array<ControlFlowNode>>? {
+        val lineNodes = controlFlowNodes.filter { it.lineNumber == line }
+        if (lineNodes.isEmpty()) return null
+        val locationsOfLine = method.locationsOfLine(line)
+        if (lineNodes.size != locationsOfLine.size) return null
+
+        if (lineNodes.size == 1) {
+            return arrayOf(locationsOfLine[0]) to arrayOf(lineNodes[0])
+        }
+
+        //if arrays match we could find the line by position in sorted array
+        val locationsArray = locationsOfLine.toTypedArray()
+        locationsArray.sortBy { it.codeIndex() }
+
+        val nodesArray = lineNodes.toTypedArray()
+        nodesArray.sortBy { it.instructionIndex }
+
+        return locationsArray to nodesArray
+    }
+
+    private fun mapLineNodeToLocation(method: Method, controlFlowNode: ControlFlowNode, controlFlowNodes: List<ControlFlowNode>): Location? {
+        val line = controlFlowNode.lineNumber ?: return null
+        val (locationsArray, nodesArray) = sortedLineArrays(method, line, controlFlowNodes) ?: return null
+        if (locationsArray.size == 1) return locationsArray[0]
+        val indexInArray = nodesArray.indexOf(controlFlowNode)
+        if (indexInArray == -1) return null
+        return locationsArray[indexInArray]
+    }
+
+    private fun mapLocationLineNode(method: Method, location: Location, controlFlowNodes: List<ControlFlowNode>): ControlFlowNode? {
+        val line = location.lineNumber()
+        val (locationsArray, nodesArray) = sortedLineArrays(method, line, controlFlowNodes) ?: return null
+        if (nodesArray.size == 1) return nodesArray[0]
+        val indexInArray = locationsArray.indexOf(location)
+        if (indexInArray == -1) return null
+        return nodesArray[indexInArray]
+    }
 
     private fun StackFrameProxy.getControlFlowReachableLocations(): List<Location>? {
         val nodes = controlFlowNodes.getOrPut(this) {
@@ -26,40 +65,15 @@ internal class SessionService {
         val line = location.lineNumber()
         val method = location.method()
 
-        val lineNodes = nodes.filter { it.lineNumber == line }
-        if (lineNodes.isEmpty()) return null //error -> fallback
+        val targetLineNode = mapLocationLineNode(method, location, nodes) ?: return null
 
-        val targetLineNodes: List<ControlFlowNode>
-        if (lineNodes.size > 1) {
-            val locationsOfLine = method.locationsOfLine(line)
-            if (lineNodes.size != locationsOfLine.size) return null //error -> fallback
+        fun nodeNextByIndex(index: Long): ControlFlowNode? =
+            nodes.filter { it.instructionIndex >= index }.minBy { it.instructionIndex }
 
-            //if arrays match we could find the line by position in sorted array
-            val codeIndexesArray = locationsOfLine.toTypedArray()
-            codeIndexesArray.sortBy { it.codeIndex() }
+        val afterLineIndex = if (targetLineNode.type == NodeType.SimpleLine) targetLineNode.instructionIndex + 1 else targetLineNode.instructionIndex
+        val nodeAfterLine = nodeNextByIndex(afterLineIndex) ?: return null
 
-            val nodesArray = lineNodes.toTypedArray()
-            nodesArray.sortBy { it.instructionIndex }
-
-            val indexOfLocation = codeIndexesArray.indexOf(location)
-            if (indexOfLocation < 0) return null //error -> fallback
-            targetLineNodes = listOf(nodesArray[indexOfLocation])
-        } else {
-            targetLineNodes = lineNodes
-        }
-
-        fun nodesNextByIndex(index: Long): List<ControlFlowNode> {
-            val bottomNodes = nodes.filter { it.instructionIndex >= index }
-            val minIndex = bottomNodes.minBy { it.instructionIndex }?.instructionIndex ?: return emptyList()
-            return bottomNodes.filter { it.instructionIndex == minIndex }
-        }
-        val nodesAfterLines = targetLineNodes.flatMap {
-            val index = if (it.type == NodeType.SimpleLine) it.instructionIndex + 1 else it.instructionIndex
-            nodesNextByIndex(index)
-        }
-        if (nodesAfterLines.isEmpty()) return null
-
-        val result = mutableListOf<Location>()
+        val result = mutableListOf<ControlFlowNode>()
         val visited = mutableSetOf<ControlFlowNode>()
         fun visitNodeAndCheckNoReturn(node: ControlFlowNode): Boolean {
             if (node.type == NodeType.Return) {
@@ -69,9 +83,7 @@ internal class SessionService {
             if (!visited.add(node)) return true
 
             if (node.lineNumber != null && node.lineNumber != line) {
-                method.locationsOfLine(node.lineNumber).forEach {
-                    result.add(it)
-                }
+                result.add(node)
                 return true
             }
 
@@ -81,23 +93,22 @@ internal class SessionService {
                 else -> error("Invalid node")
             }
 
-            val targetNodes = nodesNextByIndex(node.jumpIndex)
-            if (targetNodes.isEmpty()) return false //error
-            val targetNodesAreOk = targetNodes.all {
-                visitNodeAndCheckNoReturn(it)
-            }
+            val targetNode = nodeNextByIndex(node.jumpIndex) ?: return false
+            val targetNodesAreOk = visitNodeAndCheckNoReturn(targetNode)
             if (node.type != NodeType.ConditionalGoto) return targetNodesAreOk
 
-            val targetNodesAfterConditional = nodesNextByIndex(node.instructionIndex + 1)
-            return targetNodesAfterConditional.all {
-                visitNodeAndCheckNoReturn(it)
-            }
+            val targetNodeAfterConditional = nodeNextByIndex(node.instructionIndex + 1) ?: return true
+            return visitNodeAndCheckNoReturn(targetNodeAfterConditional)
         }
 
-        val controlPathIsNeverCallReturn = nodesAfterLines.all {
-            visitNodeAndCheckNoReturn(it)
+        if (!visitNodeAndCheckNoReturn(nodeAfterLine)) return null
+
+        val locationResult = mutableListOf<Location>()
+        for (currentNode in result) {
+            val mappedLocation = mapLineNodeToLocation(method, currentNode, nodes) ?: return null
+            locationResult.add(mappedLocation)
         }
-        return if (controlPathIsNeverCallReturn) result else null //return or error path node found -> fallback
+        return locationResult
     }
 
     internal fun DebuggerSession.onStop() {
